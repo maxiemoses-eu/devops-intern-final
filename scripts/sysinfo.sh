@@ -1,5 +1,5 @@
 #!/bin/sh
-set -euo pipefail
+set -eu
 
 echo "=== System Information ==="
 echo "User        : $(whoami) (UID: $(id -u))"
@@ -11,7 +11,7 @@ echo "=== Disk Usage ==="
 df -h /
 echo ""
 echo "=== Memory Usage ==="
-free -h 2>/dev/null || vm_stat
+free -h 2>/dev/null || vm_stat 2>/dev/null || echo "Memory statistics command unavailable"
 echo ""
 echo "=== Docker Daemon ==="
 if docker info > /dev/null 2>&1; then
