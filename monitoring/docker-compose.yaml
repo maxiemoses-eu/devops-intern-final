@@ -1,10 +1,8 @@
-version: "3.8"
-
 services:
   loki:
     image: grafana/loki:2.9.0
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./loki-config.yaml:/etc/loki/local-config.yaml
       - loki-data:/loki
@@ -14,10 +12,13 @@ services:
 
   promtail:
     image: grafana/promtail:2.9.0
+    ports:
+      - "127.0.0.1:9080:9080"
+    group_add:
+      - "986"
     volumes:
       - ./promtail-config.yaml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock
-      - /var/log:/var/log:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
       - monitoring
@@ -27,12 +28,12 @@ services:
   grafana:
     image: grafana/grafana:10.2.0
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
     networks:
       - monitoring
     depends_on:
