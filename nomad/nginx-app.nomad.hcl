@@ -1,12 +1,11 @@
 variable "image_tag" {
   type        = string
-  default     = "latest"
   description = "Docker image tag to deploy from GHCR"
 }
 
 variable "ghcr_owner" {
   type        = string
-  default     = "YOUR_GITHUB_USERNAME"
+  default     = "maxiemoses-eu"
   description = "GitHub Container Registry owner (lowercase)"
 }
 
@@ -24,21 +23,22 @@ job "nginx-app" {
     canary            = 0
   }
 
-  reschedule {
-    delay          = "30s"
-    delay_function = "exponential"
-    max_delay      = "120s"
-    unlimited      = true
-  }
-
   group "web" {
     count = 1
+    shutdown_delay = "5s"
 
     restart {
       attempts = 3
       interval = "5m"
       delay    = "15s"
       mode     = "fail"
+    }
+
+    reschedule {
+      delay          = "30s"
+      delay_function = "exponential"
+      max_delay      = "120s"
+      unlimited      = true
     }
 
     network {
@@ -48,6 +48,7 @@ job "nginx-app" {
     }
 
     service {
+      provider = "consul"
       name = "nginx-app"
       port = "http"
       tags = ["web", "nginx", "v${var.image_tag}"]
