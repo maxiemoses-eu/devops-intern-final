@@ -12,7 +12,7 @@ RUN mkdir -p /usr/share/nginx/html
 COPY index.html /tmp/index.html
 COPY nginx.conf /etc/nginx/nginx.conf
 
-RUN sed "s/__BUILD_SHA__/${BUILD_SHA}/g; s/__ASSESSMENT_DATE__/${ASSESSMENT_DATE}/g" \
+RUN sed "s|__BUILD_SHA__|${BUILD_SHA}|g; s|__ASSESSMENT_DATE__|${ASSESSMENT_DATE}|g" \
     /tmp/index.html > /usr/share/nginx/html/index.html && \
     rm /tmp/index.html
 
@@ -26,4 +26,4 @@ USER nginx
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget -qO- http://localhost:8080/healthz || exit 1
+    CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
