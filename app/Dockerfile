@@ -1,4 +1,4 @@
-FROM nginx:1.27-alpine
+FROM nginx:1.30.6-alpine-slim
 
 ARG BUILD_SHA=unknown
 ARG ASSESSMENT_DATE=unknown
