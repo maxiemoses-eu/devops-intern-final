@@ -1,0 +1,142 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: './scripts'
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: app/Dockerfile
+
+  build:
+    name: Build Image
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --build-arg BUILD_SHA="${GITHUB_SHA}" \
+            --build-arg ASSESSMENT_DATE="$(date -u +%Y-%m-%d)" \
+            -t "nginx-app:${GITHUB_SHA}" \
+            app/
+
+      - name: Enforce image size limit
+        run: |
+          SIZE=$(docker image inspect "nginx-app:${GITHUB_SHA}" --format '{{.Size}}')
+          echo "Image size: ${SIZE} bytes"
+          if [ "$SIZE" -ge 60000000 ]; then
+            echo "FAIL: Image must be smaller than 60 MB"
+            exit 1
+          fi
+          echo "PASS: Image is below 60 MB"
+
+      - name: Save image
+        run: docker save "nginx-app:${GITHUB_SHA}" -o /tmp/nginx-app.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nginx-image
+          path: /tmp/nginx-app.tar
+          retention-days: 1
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nginx-image
+          path: /tmp
+
+      - name: Load and start container
+        run: |
+          docker load -i /tmp/nginx-app.tar
+          docker run -d --name nginx-test -p 8080:8080 "nginx-app:${GITHUB_SHA}"
+
+          READY=0
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/ >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            echo "Application failed to become ready"
+            docker logs nginx-test
+            exit 1
+          fi
+
+      - name: Test application endpoint
+        run: ./scripts/healthcheck.sh http://localhost:8080/
+
+      - name: Test health endpoint
+        run: ./scripts/healthcheck.sh http://localhost:8080/healthz
+
+      - name: Verify 404 response
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/nonexistent)
+          echo "Nonexistent route returned HTTP ${STATUS}"
+          test "$STATUS" = "404"
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f nginx-test || true
+
+  publish:
+    name: Publish to GHCR
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nginx-image
+          path: /tmp
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push image
+        run: |
+          docker load -i /tmp/nginx-app.tar
+          OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_REF="ghcr.io/${OWNER}/nginx-app"
+
+          docker tag "nginx-app:${GITHUB_SHA}" "${IMAGE_REF}:${GITHUB_SHA}"
+          docker tag "nginx-app:${GITHUB_SHA}" "${IMAGE_REF}:latest"
+
+          docker push "${IMAGE_REF}:${GITHUB_SHA}"
+          docker push "${IMAGE_REF}:latest"
