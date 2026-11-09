@@ -100,7 +100,7 @@ devops-intern-final/
 
 | Component      | Tested version or compatibility target              |
 | -------------- | --------------------------------------------------- |
-| OS             | Ubuntu 24.04 on WSL2                                |
+| OS             | Ubuntu 24.04                                |
 | Kernel         | Linux 6.18, x86_64                                  |
 | Docker Engine  | 29.9.3                                              |
 | Docker Compose | v5.7.0                                              |
