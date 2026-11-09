@@ -94,10 +94,6 @@ devops-intern-final/
 └── README.md
 ```
 
-> `AGENT.md` is a local working instruction file and is intentionally not part of the assessment repository.
-
----
-
 ## 4. Prerequisites and tested environment
 
 ### Tested environment
